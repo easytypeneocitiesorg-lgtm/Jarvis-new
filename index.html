@@ -38,13 +38,13 @@
 ===================== */
 let jarvisAwake = false;
 let speaking = false;
-let voicesLoaded = false;
+let maleVoice = null;
 
 const WAKE_WORD = "hey jarvis";
 
 let memory = [{
   role: "system",
-  content: "You are Jarvis, a calm, intelligent male AI assistant. Speak clearly and concisely."
+  content: "You are Jarvis, a calm, intelligent male AI assistant."
 }];
 
 /* =====================
@@ -60,14 +60,33 @@ function addLog(text, cls) {
 }
 
 /* =====================
-   VOICE LOADING FIX
+   LOAD MALE VOICE
 ===================== */
-speechSynthesis.onvoiceschanged = () => {
-  voicesLoaded = true;
-};
+function loadMaleVoice() {
+  const voices = speechSynthesis.getVoices();
+
+  // Known male voices across platforms
+  const maleNames = [
+    "alex",       // macOS
+    "daniel",     // Windows
+    "fred",
+    "google us english",
+    "google uk english male",
+    "microsoft david",
+    "microsoft mark"
+  ];
+
+  maleVoice = voices.find(v =>
+    maleNames.some(name =>
+      v.name.toLowerCase().includes(name)
+    )
+  ) || voices[0];
+}
+
+speechSynthesis.onvoiceschanged = loadMaleVoice;
 
 /* =====================
-   SPEECH TO TEXT
+   SPEECH RECOGNITION
 ===================== */
 const SpeechRecognition =
   window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -84,21 +103,19 @@ recognition.onresult = async (event) => {
       .toLowerCase()
       .trim();
 
-  // Wake word (only once)
   if (!jarvisAwake) {
     if (transcript.includes(WAKE_WORD)) {
       jarvisAwake = true;
       addLog("Jarvis online.", "jarvis");
-      speak("I'm online.");
+      await speak("I'm online.");
     }
     return;
   }
 
-  // Sleep command
-  if (transcript.includes("stop listening")) {
+  if (transcript.includes("go to sleep")) {
     jarvisAwake = false;
     addLog("Jarvis sleeping.", "jarvis");
-    speak("Going offline.");
+    await speak("Going offline.");
     return;
   }
 
@@ -107,14 +124,16 @@ recognition.onresult = async (event) => {
   await talkToJarvis();
 };
 
-recognition.onend = () => recognition.start();
-recognition.onerror = () => recognition.start();
+recognition.onend = () => {
+  if (!speaking) recognition.start();
+};
 
 /* =====================
    OPENROUTER
 ===================== */
 async function talkToJarvis() {
   speaking = true;
+  recognition.stop();
 
   const res = await fetch("/api/jarvis", {
     method: "POST",
@@ -129,37 +148,39 @@ async function talkToJarvis() {
   addLog("Jarvis: " + reply, "jarvis");
 
   await speak(reply);
+
   speaking = false;
+  recognition.start();
 }
 
 /* =====================
-   TEXT TO SPEECH (FIXED)
+   TEXT TO SPEECH
 ===================== */
 function speak(text) {
   return new Promise((resolve) => {
+    speaking = true;
+    recognition.stop();
+
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-US";
     utter.rate = 0.95;
-    utter.pitch = 0.8;
+    utter.pitch = 0.8; // deeper male tone
+    utter.voice = maleVoice;
 
-    const voices = speechSynthesis.getVoices();
-    const male = voices.find(v =>
-      v.name.includes("Alex") ||
-      v.name.includes("Daniel") ||
-      v.name.toLowerCase().includes("male")
-    );
+    utter.onend = () => {
+      speaking = false;
+      resolve();
+    };
 
-    if (male) utter.voice = male;
-
-    utter.onend = resolve;
     speechSynthesis.speak(utter);
   });
 }
 
 /* =====================
-   START BUTTON
+   START
 ===================== */
 document.getElementById("start").onclick = () => {
+  loadMaleVoice();
   recognition.start();
   speak("Jarvis initialized.");
   document.getElementById("start").disabled = true;
