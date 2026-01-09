@@ -36,15 +36,12 @@
 /* =====================
    STATE
 ===================== */
-let jarvisAwake = false;
 let speaking = false;
 let maleVoice = null;
 
-const WAKE_WORD = "hey jarvis";
-
 let memory = [{
   role: "system",
-  content: "You are Jarvis, a calm, intelligent male AI assistant."
+  content: "You are Jarvis, a calm, intelligent male AI assistant. Speak concisely."
 }];
 
 /* =====================
@@ -60,27 +57,18 @@ function addLog(text, cls) {
 }
 
 /* =====================
-   LOAD MALE VOICE
+   LOAD ANDROID MALE VOICE
 ===================== */
 function loadMaleVoice() {
   const voices = speechSynthesis.getVoices();
 
-  // Known male voices across platforms
-  const maleNames = [
-    "alex",       // macOS
-    "daniel",     // Windows
-    "fred",
-    "google us english",
-    "google uk english male",
-    "microsoft david",
-    "microsoft mark"
-  ];
-
+  // THIS is the only reliable male voice on Android (if present)
   maleVoice = voices.find(v =>
-    maleNames.some(name =>
-      v.name.toLowerCase().includes(name)
-    )
-  ) || voices[0];
+    v.name.toLowerCase().includes("google uk english male")
+  );
+
+  // Fallback (will be female if no male exists)
+  if (!maleVoice) maleVoice = voices[0];
 }
 
 speechSynthesis.onvoiceschanged = loadMaleVoice;
@@ -100,24 +88,7 @@ recognition.onresult = async (event) => {
 
   const transcript =
     event.results[event.results.length - 1][0].transcript
-      .toLowerCase()
       .trim();
-
-  if (!jarvisAwake) {
-    if (transcript.includes(WAKE_WORD)) {
-      jarvisAwake = true;
-      addLog("Jarvis online.", "jarvis");
-      await speak("I'm online.");
-    }
-    return;
-  }
-
-  if (transcript.includes("go to sleep")) {
-    jarvisAwake = false;
-    addLog("Jarvis sleeping.", "jarvis");
-    await speak("Going offline.");
-    return;
-  }
 
   addLog("You: " + transcript, "user");
   memory.push({ role: "user", content: transcript });
@@ -162,9 +133,9 @@ function speak(text) {
     recognition.stop();
 
     const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = "en-US";
+    utter.lang = "en-GB"; // helps UK male voice trigger
     utter.rate = 0.95;
-    utter.pitch = 0.8; // deeper male tone
+    utter.pitch = 0.75;
     utter.voice = maleVoice;
 
     utter.onend = () => {
@@ -179,14 +150,15 @@ function speak(text) {
 /* =====================
    START
 ===================== */
-document.getElementById("start").onclick = () => {
+document.getElementById("start").onclick = async () => {
   loadMaleVoice();
   recognition.start();
-  speak("Jarvis initialized.");
   document.getElementById("start").disabled = true;
+
+  addLog("Jarvis: Online.", "jarvis");
+  await speak("Hello. Jarvis online.");
 };
 </script>
 
 </body>
 </html>
-
