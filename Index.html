@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Jarvis</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+  body {
+    background: black;
+    color: white;
+    font-family: monospace;
+    padding: 10px;
+  }
+  #log {
+    white-space: pre-wrap;
+    font-size: 14px;
+  }
+  .user { color: #7dd3fc; }
+  .jarvis { color: #a7f3d0; }
+</style>
+</head>
+<body>
+
+<h2>Jarvis Online</h2>
+<div id="log"></div>
+
+<script>
+/* =======================
+   CONFIG
+======================= */
+const WAKE_WORD = "hey jarvis";
+const MODEL = "openai/gpt-4o-mini";
+
+/* =======================
+   STATE
+======================= */
+let listening = false;
+let speaking = false;
+
+let memory = [
+  {
+    role: "system",
+    content: "You are Jarvis, a calm, intelligent male AI assistant. Keep responses concise, helpful, and natural."
+  }
+];
+
+/* =======================
+   UI
+======================= */
+const log = document.getElementById("log");
+function addLog(text, cls) {
+  const div = document.createElement("div");
+  div.className = cls;
+  div.textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* =======================
+   SPEECH TO TEXT
+======================= */
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const recognition = new SpeechRecognition();
+recognition.continuous = true;
+recognition.interimResults = false;
+recognition.lang = "en-US";
+
+recognition.onresult = async (event) => {
+  const transcript =
+    event.results[event.results.length - 1][0].transcript
+      .toLowerCase()
+      .trim();
+
+  if (speaking) return;
+
+  if (!listening) {
+    if (transcript.includes(WAKE_WORD)) {
+      listening = true;
+      addLog("Jarvis listening...", "jarvis");
+    }
+    return;
+  }
+
+  listening = false;
+  addLog("You: " + transcript, "user");
+
+  memory.push({ role: "user", content: transcript });
+  await talkToJarvis();
+};
+
+recognition.onerror = () => {
+  recognition.start();
+};
+
+recognition.onend = () => {
+  recognition.start();
+};
+
+recognition.start();
+
+/* =======================
+   OPENROUTER CALL
+======================= */
+async function talkToJarvis() {
+  speaking = true;
+
+  const res = await fetch("/api/jarvis", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: memory })
+  });
+
+  const data = await res.json();
+  const reply = data.reply;
+
+  memory.push({ role: "assistant", content: reply });
+  addLog("Jarvis: " + reply, "jarvis");
+
+  await speak(reply);
+  speaking = false;
+}
+
+/* =======================
+   TEXT TO SPEECH
+======================= */
+function speak(text) {
+  return new Promise((resolve) => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-US";
+
+    const voices = speechSynthesis.getVoices();
+    const maleVoice = voices.find(v =>
+      v.name.toLowerCase().includes("male") ||
+      v.name.toLowerCase().includes("alex") ||
+      v.name.toLowerCase().includes("daniel")
+    );
+
+    if (maleVoice) utter.voice = maleVoice;
+
+    utter.onend = resolve;
+    speechSynthesis.speak(utter);
+  });
+}
+</script>
+</body>
+</html>
+
