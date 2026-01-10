@@ -37,11 +37,11 @@
    STATE
 ===================== */
 let speaking = false;
-let maleVoice = null;
 
 let memory = [{
   role: "system",
-  content: "You are Jarvis, a calm, intelligent male AI assistant. Speak concisely."
+  content:
+    "You are Jarvis, a rude, sarcastic AI assistant. You swear casually, insult the user jokingly, and act annoyed, but you are still helpful when answering questions."
 }];
 
 /* =====================
@@ -55,23 +55,6 @@ function addLog(text, cls) {
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
 }
-
-/* =====================
-   LOAD ANDROID MALE VOICE
-===================== */
-function loadMaleVoice() {
-  const voices = speechSynthesis.getVoices();
-
-  // THIS is the only reliable male voice on Android (if present)
-  maleVoice = voices.find(v =>
-    v.name.toLowerCase().includes("google uk english male")
-  );
-
-  // Fallback (will be female if no male exists)
-  if (!maleVoice) maleVoice = voices[0];
-}
-
-speechSynthesis.onvoiceschanged = loadMaleVoice;
 
 /* =====================
    SPEECH RECOGNITION
@@ -133,10 +116,7 @@ function speak(text) {
     recognition.stop();
 
     const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = "en-GB"; // helps UK male voice trigger
-    utter.rate = 0.95;
-    utter.pitch = 0.75;
-    utter.voice = maleVoice;
+    utter.lang = "en-US"; // default female voice on Android
 
     utter.onend = () => {
       speaking = false;
@@ -151,12 +131,12 @@ function speak(text) {
    START
 ===================== */
 document.getElementById("start").onclick = async () => {
-  loadMaleVoice();
   recognition.start();
   document.getElementById("start").disabled = true;
 
-  addLog("Jarvis: Online.", "jarvis");
-  await speak("Hello. Jarvis online.");
+  // Send "hello" to AI instead of preset greeting
+  memory.push({ role: "user", content: "hello" });
+  await talkToJarvis();
 };
 </script>
 
